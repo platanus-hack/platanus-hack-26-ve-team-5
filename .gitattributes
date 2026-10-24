@@ -26,3 +26,6 @@
 # así el deploy no depende de que la plataforma descargue Git LFS.
 apps/web/public/** -filter -diff -merge -text
 project-logo.png -filter -diff -merge -text
+
+# Semilla de imágenes de la demo: archivos normales, el deploy no depende de LFS.
+apps/server/seed/** -filter -diff -merge -text

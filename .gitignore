@@ -21,3 +21,6 @@ CLAUDE.local.md
 
 # Caché de dependencias de Vite
 .vite
+
+# Caché en disco de imágenes de Wikimedia
+.cache/

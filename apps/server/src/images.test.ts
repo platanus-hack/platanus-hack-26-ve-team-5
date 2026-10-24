@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -40,6 +43,7 @@ let handler: (url: string) => Response | Promise<Response>;
 describe("image endpoints", () => {
   let server: Server;
   let base: string;
+  let tmp: string;
 
   beforeAll(async () => {
     server = app.listen(0);
@@ -49,6 +53,9 @@ describe("image endpoints", () => {
   afterAll(() => new Promise((r) => server.close(r)));
 
   beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), "mus3o-img-"));
+    process.env.IMAGE_CACHE_DIR = join(tmp, "cache");
+    process.env.IMAGE_SEED_DIR = join(tmp, "seed");
     clearImageCaches();
     calls.length = 0;
     vi.stubGlobal("fetch", (input: string | URL, init?: RequestInit) => {
@@ -58,7 +65,10 @@ describe("image endpoints", () => {
       return Promise.resolve(handler(url));
     });
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    rmSync(tmp, { recursive: true, force: true });
+  });
 
   it("resolves a Wikipedia summary image with Commons license data", async () => {
     handler = (url) =>

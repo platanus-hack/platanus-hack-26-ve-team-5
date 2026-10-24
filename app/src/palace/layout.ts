@@ -192,16 +192,17 @@ export function buildLayout(palace: Palace): PalaceLayout {
   const xs = rooms.flatMap((r) => [r.x - r.w / 2, r.x + r.w / 2])
   const zs = rooms.flatMap((r) => [r.z - r.d / 2, r.z + r.d / 2])
   const first = rooms[0]
-  // Aparece cerca de la pared sin puerta, mirando al monumento.
-  const spawnSide: Side = first.doors.includes('n') ? 's' : 'n'
-  const spawnZ = spawnSide === 'n' ? first.z - first.d / 2 + 1.5 : first.z + first.d / 2 - 1.5
+  // Aparece en una esquina sin puerta, mirando al monumento: lejos del anillo de pedestales.
+  const sx = first.x - first.w / 2 + 1.5
+  const sz = first.z - first.d / 2 + 1.5
+  const spawn = { x: sx, z: sz, yaw: Math.atan2(-(first.x - sx), -(first.z - sz)) }
 
   return {
     rooms,
     corridors,
     colliders,
     bounds: { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) },
-    spawn: { x: first.x, z: spawnZ, yaw: spawnSide === 'n' ? Math.PI : 0 },
+    spawn,
   }
 }
 

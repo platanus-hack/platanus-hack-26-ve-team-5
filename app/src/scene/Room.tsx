@@ -1,6 +1,6 @@
 import { Billboard, Text } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { useRef } from 'react'
+import { Suspense, useRef } from 'react'
 import type { Mesh } from 'three'
 import type { Box, PedestalLayout, RoomLayout } from '../palace/layout'
 import { useStore } from '../store'
@@ -49,11 +49,13 @@ function Monument({ room }: { room: RoomLayout }) {
         <ShapeGeometry shape={room.monument} size={1} />
         <meshStandardMaterial color={room.color} emissive={room.color} emissiveIntensity={0.6} flatShading />
       </mesh>
+      <Suspense fallback={null}>
       <Billboard position={[0, 3.9, 0]}>
         <Text font={FONT} fontSize={0.55} color="#F4F1FF" anchorY="bottom" maxWidth={8} textAlign="center">
           {room.title}
         </Text>
       </Billboard>
+      </Suspense>
     </group>
   )
 }
@@ -93,6 +95,7 @@ function Pedestal({ p, color }: { p: PedestalLayout; color: string }) {
           flatShading
         />
       </mesh>
+      <Suspense fallback={null}>
       <Billboard position={[0, 2.1, 0]}>
         <Text
           font={FONT}
@@ -107,6 +110,7 @@ function Pedestal({ p, color }: { p: PedestalLayout; color: string }) {
           {label}
         </Text>
       </Billboard>
+      </Suspense>
     </group>
   )
 }

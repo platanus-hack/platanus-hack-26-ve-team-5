@@ -87,7 +87,7 @@ async function main() {
       continue;
     }
     await sleep(DELAY_MS / 2);
-    let url = decodeURIComponent(new URL(result.src, "http://x").searchParams.get("u") ?? "");
+    let url = new URL(result.src, "http://x").searchParams.get("u") ?? "";
     let file = await loadImageFile(url);
     // Pinturas en PNG pesan MB a 960 px: se prueba con miniaturas más angostas (Wikimedia solo sirve anchos estándar).
     for (const w of [500, 330, 250]) {

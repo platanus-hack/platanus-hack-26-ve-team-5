@@ -33,7 +33,15 @@ export const cacheDir = () => resolve(process.env.IMAGE_CACHE_DIR || ".cache/ima
 const maxCacheBytes = () => Math.max(1, Number(process.env.IMAGE_CACHE_MAX_MB) || 200) * 1024 * 1024;
 
 const metaName = (key: string) => `${sha("meta|" + key)}.json`;
-const fileBase = (url: string) => sha("file|" + url);
+// Misma serialización que usa el proxy (`new URL(...).toString()`), para que semilla, caché y rutas coincidan.
+const canonicalUrl = (url: string) => {
+  try {
+    return new URL(url).toString();
+  } catch {
+    return url;
+  }
+};
+const fileBase = (url: string) => sha("file|" + canonicalUrl(url));
 
 async function readIf(path: string): Promise<Buffer | null> {
   try {

@@ -149,6 +149,15 @@ describe("seed", () => {
     expect(cacheFiles()).toEqual([]);
   });
 
+  it("finds a seeded file whether the URL is written raw or as the proxy serializes it", async () => {
+    await writeSeedFile("https://upload.wikimedia.org/wikipedia/commons/a/ab/Un Cuadro.jpg", { body: Buffer.from([5]), type: "image/jpeg" });
+    handler = () => {
+      throw new Error("no debería salir a la red");
+    };
+    expect(await loadImageFile("https://upload.wikimedia.org/wikipedia/commons/a/ab/Un%20Cuadro.jpg")).toMatchObject({ type: "image/jpeg" });
+    expect(calls).toHaveLength(0);
+  });
+
   it("wins over the disk cache", async () => {
     handler = wikiHandler;
     await resolveImage({ wiki: "Roma" }); // llena la caché con "Roma"

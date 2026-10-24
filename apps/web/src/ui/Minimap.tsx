@@ -1,8 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PalaceLayout } from '../palace/layout'
 import { pieceKind } from '../palace/pieceKind'
+import { DUE_THRESHOLD, strengthOf } from '../memory/model'
+import { roomStrength } from '../memory/shown'
+import { nowMs, useMemory } from '../memory/store'
 import { playerPose, useStore } from '../store'
+import { palaceKey } from '../memory/model'
 import { DEFAULT_THEME, roomPalettes } from '../theme'
+
+const PALE_PLASTER = '#D8D0C2'
+
+function mixHex(a: string, b: string, t: number): string {
+  const p = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16)
+  const c = (i: number) => Math.round(p(a, i) + (p(b, i) - p(a, i)) * t)
+  return `rgb(${c(0)} ${c(1)} ${c(2)})`
+}
 
 const COMPACT_SIZE = 180
 const EXPANDED_SIZE = 340
@@ -32,9 +44,13 @@ export function Minimap({ layout }: { layout: PalaceLayout }) {
     const { tokens } = DEFAULT_THEME.ui
     const palettes = roomPalettes(DEFAULT_THEME, layout.rooms.map((r) => r.title))
     let raf = 0
+    const palace = useStore.getState().palace
+    const key = palace ? palaceKey(palace) : null
 
     const draw = () => {
       const { memorized, currentRoomId } = useStore.getState()
+      const mem = (key && useMemory.getState().palaces[key]) || {}
+      const now = nowMs()
       ctx.clearRect(0, 0, size, size)
       ctx.fillStyle = tokens.surface
       ctx.fillRect(0, 0, size, size)
@@ -51,8 +67,19 @@ export function Minimap({ layout }: { layout: PalaceLayout }) {
         const active = r.id === currentRoomId
         const x = tx(r.x - r.w / 2)
         const z = tz(r.z - r.d / 2)
-        ctx.fillStyle = palettes[r.index].wall
+        // El pigmento se apaga con la memoria de la sala (misma fuerza que ve la escena 3D).
+        const fade = Math.min(1, Math.max(0, (1 - roomStrength(r.id)) / 0.7)) * 0.75
+        ctx.fillStyle = mixHex(palettes[r.index].wall, PALE_PLASTER, fade)
         ctx.fillRect(x, z, r.w * k, r.d * k)
+        // Marca de repaso: cuadrito dorado en la esquina si la sala tiene conceptos pendientes.
+        if (r.pedestals.some((p) => mem[p.concept.id] && strengthOf(mem[p.concept.id], now) < DUE_THRESHOLD)) {
+          const m = expanded ? 11 : 8
+          ctx.fillStyle = tokens.accent
+          ctx.strokeStyle = tokens.ink
+          ctx.lineWidth = 1.2
+          ctx.fillRect(x + 3, z + 3, m, m)
+          ctx.strokeRect(x + 3, z + 3, m, m)
+        }
         ctx.strokeStyle = tokens.ink
         ctx.lineWidth = active ? 3 : 1
         ctx.strokeRect(x, z, r.w * k, r.d * k)

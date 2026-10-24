@@ -4,6 +4,7 @@ import { dungeonDemoMuseum } from '../mocks/dungeon'
 import { EXAMPLE_TEXT } from '../palace/example'
 import { buildLayout } from '../palace/layout'
 import { detectFormat, MAX_INPUT_CHARS, parsePalace, type InputFormat } from '../palace/parse'
+import { dueCountFor } from '../memory/hooks'
 import { useStore } from '../store'
 
 // La maqueta 3D se carga aparte para que three.js no bloquee la primera pintura de la landing.
@@ -144,6 +145,9 @@ export function Landing() {
           {saved && (
             <button className="btn btn-ghost" onClick={resume}>
               Continuar “{saved.title}”
+              {dueCountFor(saved) > 0 && (
+                <span className="due-chip"> · {dueCountFor(saved)} {dueCountFor(saved) === 1 ? 'repaso pendiente' : 'repasos pendientes'}</span>
+              )}
             </button>
           )}
         </div>

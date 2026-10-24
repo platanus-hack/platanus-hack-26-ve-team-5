@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { PalaceLayout } from '../palace/layout'
 import { isCorrectAnswer } from '../palace/match'
 import { pieceKind } from '../palace/pieceKind'
 import type { Piece as Concept } from '@mus3o/shared'
 import { creditLine, useResolvedImage } from '../lib/images'
 import { pointerLock } from '../scene/pointerLock'
-import { allConcepts, useStore } from '../store'
+import { useDueCount, useRoomMemory } from '../memory/hooks'
+import { TIME_STEPS } from '../memory/model'
+import { useMemory } from '../memory/store'
+import { allConcepts, inExamScope, useStore } from '../store'
 import { roomPalettes, DEFAULT_THEME, type RoomPalette } from '../theme'
 import { Minimap } from './Minimap'
 
@@ -108,10 +111,13 @@ export function Hud({ layout }: { layout: PalaceLayout }) {
   const unlockedDoors = useStore((s) => s.unlockedDoors)
   const openId = useStore((s) => s.openId)
   const setMode = useStore((s) => s.setMode)
+  const reviewIds = useStore((s) => s.reviewIds)
+  const startReview = useStore((s) => s.startReview)
   const exitToLanding = useStore((s) => s.exitToLanding)
 
   const room = layout.rooms.find((r) => r.id === currentRoomId) ?? layout.rooms[0]
-  const total = allConcepts(palace).length
+  const total = reviewIds?.length ?? allConcepts(palace).length
+  const conceptCount = allConcepts(palace).length
   const memorizedCount = Object.keys(memorized).length
   const answered = Object.values(exam)
   const score = answered.filter((r) => r === 'ok').length
@@ -121,12 +127,20 @@ export function Hud({ layout }: { layout: PalaceLayout }) {
   const focused = findConcept(layout, focusedId)
   const focusedKind = focused ? pieceKind(focused.concept) : 'standard'
   const examFinished = mode === 'exam' && answered.length === total && total > 0
+  const roomIds = useMemo(() => room.pedestals.map((p) => p.concept.id), [room])
+  const roomMem = useRoomMemory(roomIds)
+  const due = useDueCount()
+  const offsetDays = useMemory((s) => s.timeOffsetDays)
+  const setOffset = useMemory((s) => s.setOffset)
 
   return (
     <div className="hud">
       <div className="plaque" style={wallVars(palette)}>
         <p className="plaque-meta">Sala {room.index + 1} de {layout.rooms.length} · {palette.name}</p>
         <p className="plaque-title">{room.title}</p>
+        <p className="plaque-memory">
+          {roomMem.learned ? `Memoria de la sala: ${Math.round(roomMem.strength * 100)}%` : 'Sala sin estudiar todavía'}
+        </p>
       </div>
 
       <div className="hud-right">
@@ -138,11 +152,12 @@ export function Hud({ layout }: { layout: PalaceLayout }) {
         )}
         <p className="hud-progress">
           {mode === 'explore' ? (
-            <>{memorizedCount} de {total} memorizados</>
+            <>{memorizedCount} de {conceptCount} memorizados</>
           ) : (
             <>Examen: {score} de {answered.length} correctas, faltan {total - answered.length}</>
           )}
         </p>
+        <p className={due > 0 ? 'hud-due hud-due-on' : 'hud-due'}>Repasos pendientes: {due}</p>
       </div>
 
       {locked && <div className="crosshair" />}
@@ -164,13 +179,13 @@ export function Hud({ layout }: { layout: PalaceLayout }) {
             ? hasKey
               ? 'Examinar Llave de Hierro'
               : 'Recoger Llave de Hierro'
-            : mode === 'exam' && !exam[focusedId]
+            : inExamScope({ mode, reviewIds }, focusedId) && !exam[focusedId]
               ? 'Responder'
               : 'Examinar concepto'}
         </p>
       )}
 
-      {open && (mode === 'explore' ? (
+      {open && (!inExamScope({ mode, reviewIds }, open.concept.id) ? (
         <ConceptCard concept={open.concept} palette={palettes[open.room.index]} roomName={open.room.title} />
       ) : (
         <ExamCard key={open.concept.id} concept={open.concept} palette={palettes[open.room.index]} />
@@ -180,14 +195,16 @@ export function Hud({ layout }: { layout: PalaceLayout }) {
         <kbd>W A S D</kbd> moverse · <kbd>Shift</kbd> correr · <kbd>Mouse</kbd> mirar · <kbd>Esc</kbd> pausa
       </p>
 
-      {!locked && !(mode === 'exam' && open) && (
+      {!locked && !(open && inExamScope({ mode, reviewIds }, open.concept.id)) && (
         <div className="pause">
           <div className="pause-panel">
             <p className="pause-sub">{palace?.title}</p>
-            <h1>{examFinished ? `Resultado: ${score} de ${total}` : mode === 'exam' ? 'Modo examen' : 'Tu palacio está levantado'}</h1>
+            <h1>{examFinished ? `Resultado: ${score} de ${total}` : reviewIds ? 'Repaso' : mode === 'exam' ? 'Modo examen' : 'Tu palacio está levantado'}</h1>
             <p className="muted">
               {mode === 'exam'
-                ? 'Los carteles están ocultos. Acércate a cada pedestal y di qué concepto había.'
+                ? reviewIds
+                  ? 'Solo se preguntan los conceptos que se están olvidando. Acércate a cada pedestal roto y di qué había.'
+                  : 'Los carteles están ocultos. Acércate a cada pedestal y di qué concepto había.'
                 : 'Camina por las salas, examina cada pedestal y marca lo que ya recuerdas.'}
             </p>
             <div className="pause-actions">
@@ -198,6 +215,45 @@ export function Hud({ layout }: { layout: PalaceLayout }) {
                 {mode === 'exam' ? 'Volver a explorar' : 'Empezar modo examen'}
               </button>
               <button className="btn btn-ghost" onClick={exitToLanding}>Editar apuntes</button>
+            </div>
+
+            <div className="memory-panel">
+              <button
+                className="btn btn-primary"
+                disabled={due === 0}
+                onClick={() => {
+                  if (startReview()) pointerLock.lock()
+                }}
+              >
+                Repasar lo pendiente{due > 0 ? ` (${due})` : ''}
+              </button>
+              {due === 0 && <p className="muted memory-note">Nada que repasar por ahora. Marca conceptos con M para que el palacio los recuerde.</p>}
+              <fieldset className="time-machine">
+                <legend>Simular el paso del tiempo</legend>
+                <div className="time-steps" role="group" aria-label="Días simulados">
+                  {TIME_STEPS.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      className={offsetDays === d ? 'btn btn-step is-on' : 'btn btn-step'}
+                      aria-pressed={offsetDays === d}
+                      onClick={() => setOffset(d)}
+                    >
+                      {d === 0 ? 'Hoy' : `${d} ${d === 1 ? 'día' : 'días'}`}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={30}
+                  step={1}
+                  value={Math.min(offsetDays, 30)}
+                  onChange={(e) => setOffset(Number(e.target.value))}
+                  aria-label="Días que han pasado"
+                />
+                <p className="muted memory-note">{offsetDays === 0 ? 'Es hoy.' : `Han pasado ${offsetDays} ${offsetDays === 1 ? 'día' : 'días'}.`}</p>
+              </fieldset>
             </div>
           </div>
         </div>

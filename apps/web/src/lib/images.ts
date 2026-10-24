@@ -71,18 +71,33 @@ function preload(src: string): Promise<void> {
 
 const hasSearch = (s?: ImageSearch): s is ImageSearch => !!(s?.wikiTitle?.trim() || s?.commonsQuery?.trim())
 
+const PREFETCH_CONCURRENCY = 4
+
 /**
  * Resuelve y precarga las imágenes de todas las salas y piezas al entrar al palacio,
- * para que la ficha de un objeto las muestre al instante.
+ * para que la ficha de un objeto las muestre al instante. Como mucho 4 a la vez y los cuadros
+ * principales de las salas primero, para no saturar al servidor ni a Wikimedia.
  */
 export async function prefetchPalaceImages(palace: Museum): Promise<void> {
-  const searches = palace.rooms.flatMap((room) => [room.imageSearch, ...room.pieces.map((p) => p.imageSearch)])
-  await Promise.all(
-    searches.filter(hasSearch).map(async (search) => {
-      const image = await fetchResolvedImage(search)
+  const ordered = [
+    ...palace.rooms.map((room) => room.imageSearch),
+    ...palace.rooms.flatMap((room) => room.pieces.map((p) => p.imageSearch)),
+  ].filter(hasSearch)
+  const seen = new Set<string>()
+  const queue = ordered.filter((s) => {
+    const key = keyOf(s)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  let next = 0
+  const worker = async () => {
+    while (next < queue.length) {
+      const image = await fetchResolvedImage(queue[next++])
       if (image) await preload(image.src)
-    }),
-  )
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(PREFETCH_CONCURRENCY, queue.length) }, worker))
 }
 
 /** `undefined` mientras carga, `null` si no hay imagen. */

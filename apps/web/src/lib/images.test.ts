@@ -80,4 +80,33 @@ describe('prefetchPalaceImages', () => {
     await prefetchPalaceImages(palace)
     expect(preloaded.length).toBe(before)
   })
+
+  it('asks at most 4 images at a time and the room paintings first', async () => {
+    let active = 0
+    let peak = 0
+    const order: string[] = []
+    fetchMock.mockImplementation(async (url: string) => {
+      const wiki = new URL(url, 'http://local').searchParams.get('wiki')!
+      order.push(wiki)
+      active++
+      peak = Math.max(peak, active)
+      await new Promise((r) => setTimeout(r, 5))
+      active--
+      return new Response(JSON.stringify(resolved(`https://upload.wikimedia.org/${wiki}.jpg`)))
+    })
+    const big: Museum = {
+      title: 'Big',
+      rooms: ['r1', 'r2'].map((r) => ({
+        id: r,
+        name: r,
+        description: '',
+        imageSearch: { wikiTitle: `Sala ${r}` },
+        pieces: Array.from({ length: 8 }, (_, n) => ({ id: `${r}p${n}`, title: 'p', text: '', fact: '', imageSearch: { wikiTitle: `Pieza ${r}${n}` } })),
+      })),
+    }
+    await prefetchPalaceImages(big)
+    expect(peak).toBe(4)
+    expect(order.slice(0, 2).sort()).toEqual(['Sala r1', 'Sala r2'])
+    expect(order).toHaveLength(18)
+  })
 })

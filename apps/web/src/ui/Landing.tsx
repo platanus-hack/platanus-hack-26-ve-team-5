@@ -1,4 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react'
+import { countSources, type Museum } from '@mus3o/shared'
 import { generateMuseum } from '../lib/api'
 import { dungeonDemoMuseum } from '../mocks/dungeon'
 import { EXAMPLE_TEXT } from '../palace/example'
@@ -14,6 +15,14 @@ const Preview = lazy(() => import('../scene/Preview').then((m) => ({ default: m.
 const PLACEHOLDER = ['# Tema 1', '- Concepto A: explicación', '- Concepto B', '', '# Tema 2', '- Concepto C'].join(String.fromCharCode(10))
 const MAX_FILE_BYTES = 200_000
 
+/** "17 de 17 conceptos verificados en tus apuntes" o "15 de 17 · 2 sin fuente". */
+export function sourceSummary(palace: Museum): string {
+  const { total, verified, unverified } = countSources(palace)
+  return unverified === 0
+    ? `${verified} de ${total} conceptos verificados en tus apuntes`
+    : `${verified} de ${total} · ${unverified} sin fuente`
+}
+
 export function Landing() {
   const enterPalace = useStore((s) => s.enterPalace)
   const resume = useStore((s) => s.resume)
@@ -23,6 +32,8 @@ export function Landing() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [aiState, setAiState] = useState<'idle' | 'loading'>('idle')
   const [aiError, setAiError] = useState<string | null>(null)
+  // Palacio generado con IA a la espera de entrar: deja ver cuántos conceptos se verificaron.
+  const [aiResult, setAiResult] = useState<{ palace: Museum; text: string } | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   useEffect(() => () => abortRef.current?.abort(), [])
 
@@ -32,9 +43,13 @@ export function Landing() {
     const controller = new AbortController()
     abortRef.current = controller
     setAiError(null)
+    setAiResult(null)
     setAiState('loading')
     try {
-      enterPalace(await generateMuseum(input, controller.signal))
+      const palace = await generateMuseum(input, controller.signal)
+      const { verified, unverified } = countSources(palace)
+      if (verified + unverified === 0) enterPalace(palace)
+      else setAiResult({ palace, text: input.trim() })
     } catch (e) {
       if (controller.signal.aborted) return
       const status = (e as { status?: number }).status
@@ -93,7 +108,7 @@ export function Landing() {
           </div>
           <textarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => { setInput(e.target.value); setAiResult(null) }}
             placeholder={PLACEHOLDER}
             spellCheck={false}
             maxLength={MAX_INPUT_CHARS}
@@ -104,6 +119,8 @@ export function Landing() {
               <span className="error">{aiError}</span>
             ) : fileError ? (
               <span className="error">{fileError}</span>
+            ) : aiResult ? (
+              <span>{sourceSummary(aiResult.palace)}</span>
             ) : result.ok ? (
               <span>
                 {result.palace.rooms.length} salas · {conceptCount} conceptos
@@ -116,7 +133,12 @@ export function Landing() {
         </div>
 
         <div className="actions">
-          <button className="btn btn-primary btn-lg" disabled={!result.ok} onClick={() => result.ok && enterPalace(result.palace)}>
+          {aiResult && (
+            <button className="btn btn-primary btn-lg" onClick={() => enterPalace(aiResult.palace, aiResult.text)}>
+              Entrar al palacio
+            </button>
+          )}
+          <button className={aiResult ? 'btn' : 'btn btn-primary btn-lg'} disabled={!result.ok} onClick={() => result.ok && enterPalace(result.palace, input)}>
             Construir palacio
           </button>
           <button className="btn" disabled={!input.trim() || aiState === 'loading'} onClick={generateWithAi}>

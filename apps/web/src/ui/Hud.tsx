@@ -13,6 +13,7 @@ import { allConcepts, inExamScope, isDoorOpen, useStore } from '../store'
 import { roomPalettes, DEFAULT_THEME, type RoomPalette } from '../theme'
 import { FreeExploreToggle } from './FreeExploreToggle'
 import { Minimap } from './Minimap'
+import { SourceBlock } from './SourceBlock'
 
 function wallVars(p: RoomPalette) {
   return { '--wall': p.wall, '--wall-ink': p.ink } as React.CSSProperties
@@ -36,6 +37,7 @@ function ConceptCard({ concept, palette, roomName }: { concept: Concept; palette
         <h2>{concept.title}</h2>
         {concept.text && <p className="card-body">{concept.text}</p>}
         {concept.fact && <p className="card-meta">{concept.fact}</p>}
+        <SourceBlock concept={concept} />
         {image && (
           <figure className="card-figure">
             <img src={image.src} alt={image.title} width={image.width} height={image.height} decoding="async" />

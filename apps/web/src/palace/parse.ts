@@ -8,13 +8,17 @@ export type ParseResult =
   | { ok: true; palace: Museum; warnings: string[] }
   | { ok: false; error: string }
 
-type DraftConcept = { title: string; detail: string; metaphor?: string }
-type DraftRoom = { title: string; concepts: DraftConcept[] }
+type DraftSource = { quote: string; line?: number }
+type DraftConcept = { title: string; detail: string; metaphor?: string; source?: DraftSource }
+type DraftRoom = { title: string; concepts: DraftConcept[]; source?: DraftSource }
 
 const clip = (s: string, max: number) => {
   const t = s.replace(/\s+/g, ' ').trim()
   return t.length > max ? t.slice(0, max - 1) + '…' : t
 }
+
+// Línea original recortada, para mostrar de dónde sale cada concepto (los apuntes siguen siendo del usuario).
+const lineSource = (raw: string, lineNo: number): DraftSource => ({ quote: raw.trim().slice(0, LIMITS.maxQuote), line: lineNo })
 
 // "Título: detalle", "Título - detalle", "Título — detalle"
 function splitTitleDetail(line: string): DraftConcept {
@@ -29,7 +33,7 @@ function parseText(input: string): DraftRoom[] {
   let lastConcept: DraftConcept | null = null
   let lastIndent = 0
 
-  for (const raw of input.split(/\r?\n/)) {
+  for (const [i, raw] of input.split(/\r?\n/).entries()) {
     if (!raw.trim()) continue
     const indent = raw.match(/^\s*/)![0].replace(/\t/g, '  ').length
     const line = raw.trim()
@@ -37,7 +41,7 @@ function parseText(input: string): DraftRoom[] {
     const heading = line.match(/^#{1,6}\s+(.*)$/)
 
     if (heading || (!bullet && indent === 0)) {
-      current = { title: (heading ? heading[1] : line).replace(/:$/, ''), concepts: [] }
+      current = { title: (heading ? heading[1] : line).replace(/:$/, ''), concepts: [], source: lineSource(raw, i + 1) }
       rooms.push(current)
       lastConcept = null
       continue
@@ -51,16 +55,27 @@ function parseText(input: string): DraftRoom[] {
       lastConcept.detail = [lastConcept.detail, line].filter(Boolean).join(' ')
       continue
     }
-    lastConcept = splitTitleDetail(bullet ? bullet[1] : line)
+    lastConcept = { ...splitTitleDetail(bullet ? bullet[1] : line), source: lineSource(raw, i + 1) }
     lastIndent = indent
     current.concepts.push(lastConcept)
   }
 
   // Texto plano sin jerarquía: todo va a una sola sala.
   if (rooms.length > 0 && rooms.every((r) => r.concepts.length === 0)) {
-    return [{ title: 'Apuntes', concepts: rooms.map((r) => splitTitleDetail(r.title)) }]
+    return [{ title: 'Apuntes', concepts: rooms.map((r) => ({ ...splitTitleDetail(r.title), source: r.source })) }]
   }
   return rooms
+}
+
+// Solo se acepta la fuente si el JSON ya la trae: nunca se inventa.
+function sourceFromUnknown(v: unknown): DraftSource | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined
+  const { quote, line } = v as Record<string, unknown>
+  if (typeof quote !== 'string' || !quote.trim()) return undefined
+  return {
+    quote: quote.trim().slice(0, LIMITS.maxQuote),
+    line: typeof line === 'number' && Number.isInteger(line) && line >= 1 ? line : undefined,
+  }
 }
 
 function conceptFromUnknown(v: unknown, key?: string): DraftConcept | null {
@@ -75,6 +90,7 @@ function conceptFromUnknown(v: unknown, key?: string): DraftConcept | null {
       title,
       detail: typeof detail === 'string' ? detail : JSON.stringify(detail),
       metaphor: typeof metaphor === 'string' ? metaphor : undefined,
+      source: sourceFromUnknown(o.source),
     }
   }
   if (key) return { title: key, detail: String(v) }
@@ -140,17 +156,18 @@ function splitCsvLine(line: string, sep: string): string[] {
 
 // Columnas: sala, concepto, detalle (opcional), metáfora (opcional).
 function parseCsv(input: string): DraftRoom[] {
-  const lines = input.split(/\r?\n/).filter((l) => l.trim())
+  // Se conserva el número de línea original (las vacías se saltan pero cuentan).
+  const lines = input.split(/\r?\n/).map((text, i) => ({ text, no: i + 1 })).filter((l) => l.text.trim())
   if (lines.length === 0) return []
-  const sep = (lines[0].match(/;/g)?.length ?? 0) > (lines[0].match(/,/g)?.length ?? 0) ? ';' : ','
-  const header = splitCsvLine(lines[0], sep).map((h) => h.toLowerCase())
+  const sep = (lines[0].text.match(/;/g)?.length ?? 0) > (lines[0].text.match(/,/g)?.length ?? 0) ? ';' : ','
+  const header = splitCsvLine(lines[0].text, sep).map((h) => h.toLowerCase())
   const looksLikeHeader = header.some((h) => /sala|tema|room|categor|concept|item|detalle|detail/.test(h))
-  const rows = (looksLikeHeader ? lines.slice(1) : lines).map((l) => splitCsvLine(l, sep))
+  const rows = (looksLikeHeader ? lines.slice(1) : lines).map((l) => ({ cells: splitCsvLine(l.text, sep), l }))
   const byRoom = new Map<string, DraftRoom>()
-  for (const [room, concept, detail = '', metaphor] of rows) {
+  for (const { cells: [room, concept, detail = '', metaphor], l } of rows) {
     if (!room || !concept) continue
     if (!byRoom.has(room)) byRoom.set(room, { title: room, concepts: [] })
-    byRoom.get(room)!.concepts.push({ title: concept, detail, metaphor: metaphor || undefined })
+    byRoom.get(room)!.concepts.push({ title: concept, detail, metaphor: metaphor || undefined, source: lineSource(l.text, l.no) })
   }
   return [...byRoom.values()]
 }
@@ -221,6 +238,7 @@ export function parsePalace(input: string, format: InputFormat = detectFormat(in
             // Sin IA no hay dato curioso; la metáfora (si viene) ocupa ese lugar.
             fact: c.metaphor ? clip(c.metaphor, LIMITS.maxText) : '',
             imageSearch: imageSearchFor(c.title),
+            ...(c.source ? { source: c.source } : {}),
           })),
       }
     }),

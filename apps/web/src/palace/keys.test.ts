@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Museum, Piece } from '@mus3o/shared'
+import { useMemory } from '../memory/store'
 import { useStore } from '../store'
 import { canOpenDoor, earnedRoomKeys, remainingToMemorize } from './keys'
 import { buildLayout } from './layout'
@@ -85,7 +86,11 @@ describe('room keys', () => {
 })
 
 describe('store', () => {
-  beforeEach(() => useStore.getState().enterPalace(museum))
+  beforeEach(() => {
+    // La memoria persiste entre casos: se limpia para que cada test empiece sin repasos previos.
+    useMemory.setState({ palaces: {}, timeOffsetDays: 0 })
+    useStore.getState().enterPalace(museum)
+  })
 
   it('gives the room key after memorizing its last piece and announces it', () => {
     const s = useStore.getState()

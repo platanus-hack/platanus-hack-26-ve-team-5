@@ -20,7 +20,7 @@ else if (demo === 'historia') useStore.getState().enterPalace(historiaMuseum)
 else if (demo === 'dungeon') useStore.getState().enterPalace(dungeonDemoMuseum)
 else if (demo !== null) {
   const r = parsePalace(EXAMPLE_TEXT)
-  if (r.ok) useStore.getState().enterPalace(r.palace)
+  if (r.ok) useStore.getState().enterPalace(r.palace, EXAMPLE_TEXT)
 }
 if (demo !== null) {
   const entered = useStore.getState().palace

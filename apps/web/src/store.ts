@@ -17,6 +17,8 @@ type State = {
   screen: Screen
   mode: Mode
   palace: Museum | null
+  /** Apuntes del usuario (≤ 50 KB) para mostrar el contexto de cada fuente; se quedan en su dispositivo. */
+  sourceText: string | null
   layout: PalaceLayout | null
   memorized: Record<string, true>
   exam: Record<string, ExamResult>
@@ -36,7 +38,7 @@ type State = {
   /** Sala cuya llave se acaba de ganar, para avisarlo en el HUD. */
   lastKeyRoomId: string | null
 
-  enterPalace: (palace: Museum) => void
+  enterPalace: (palace: Museum, sourceText?: string | null) => void
   resume: () => void
   exitToLanding: () => void
   setMode: (mode: Mode) => void
@@ -61,6 +63,12 @@ function withEarnedKeys(s: Progress, memorized: Record<string, true>, exam: Stat
   return { roomKeys: { ...s.roomKeys, ...earned }, lastKeyRoomId: fresh[fresh.length - 1] }
 }
 
+export const MAX_SOURCE_TEXT = 50_000
+
+/** Lo guardado puede estar manipulado: solo se acepta texto y dentro del tope. */
+export const capSourceText = (v: unknown): string | null =>
+  typeof v === 'string' && v.length > 0 ? v.slice(0, MAX_SOURCE_TEXT) : null
+
 const safeStorage = createJSONStorage(() => {
   try {
     return window.localStorage
@@ -75,6 +83,7 @@ export const useStore = create<State>()(
       screen: 'landing',
       mode: 'explore',
       palace: null,
+      sourceText: null,
       layout: null,
       memorized: {},
       exam: {},
@@ -90,9 +99,10 @@ export const useStore = create<State>()(
       roomKeys: {},
       lastKeyRoomId: null,
 
-      enterPalace: (palace) =>
+      enterPalace: (palace, sourceText) =>
         set({
           palace,
+          sourceText: capSourceText(sourceText),
           layout: buildLayout(palace),
           screen: 'palace',
           mode: 'explore',
@@ -158,11 +168,12 @@ export const useStore = create<State>()(
         roomKeys: s.roomKeys,
         unlockedDoors: s.unlockedDoors,
         freeExplore: s.freeExplore,
+        sourceText: s.sourceText,
       }),
       // Lo guardado puede estar corrupto o venir de otra versión: se valida antes de usarlo.
       merge: (persisted, current) => {
         const p = persisted as
-          | { palace?: unknown; memorized?: unknown; roomKeys?: unknown; unlockedDoors?: unknown; freeExplore?: unknown }
+          | { palace?: unknown; memorized?: unknown; roomKeys?: unknown; unlockedDoors?: unknown; freeExplore?: unknown; sourceText?: unknown }
           | undefined
         const freeExplore = typeof p?.freeExplore === 'boolean' ? p.freeExplore : current.freeExplore
         const palace = MuseumSchema.safeParse(p?.palace)
@@ -172,7 +183,7 @@ export const useStore = create<State>()(
         const memorized = record(p?.memorized)
         // Las llaves guardadas se completan con las que corresponden al progreso guardado.
         const roomKeys = { ...record(p?.roomKeys), ...earnedRoomKeys(palace.data, memorized, {}) }
-        return { ...current, palace: palace.data, memorized, roomKeys, unlockedDoors: record(p?.unlockedDoors), freeExplore }
+        return { ...current, palace: palace.data, memorized, roomKeys, unlockedDoors: record(p?.unlockedDoors), freeExplore, sourceText: capSourceText(p?.sourceText) }
       },
     },
   ),

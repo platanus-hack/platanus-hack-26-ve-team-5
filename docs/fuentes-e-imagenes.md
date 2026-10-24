@@ -118,3 +118,20 @@ ImageSearch = { wikiTitle?, commonsQuery?, lang? }
 | `apps/server/src/images.test.ts` | Clasificación, URLs permitidas, caché |
 | `apps/web/src/lib/images.test.ts`, `images.retry.test.ts` | Caché, deduplicación, reintentos |
 | `apps/web/src/palace/sources.test.ts`, `sourceText.test.ts` | Vista de la fuente en el HUD |
+
+## 5. Imágenes de Wikimedia: semilla y caché en disco
+
+Orden de búsqueda (metadatos de `/api/image` y bytes de `/api/image/file`): **memoria → semilla → caché en disco → Wikimedia**.
+
+- **Semilla** (`apps/server/seed/images/`, commiteada, solo lectura, archivos normales sin Git LFS): la demo (`?demo=historia`, `?demo=medicina`) funciona aunque Wikimedia nos limite la tasa. Nombres = sha256 de la consulta / URL.
+- **Caché** (`IMAGE_CACHE_DIR`, por defecto `./.cache/images`, ignorada por Git): sobrevive a reinicios; guarda también los "sin imagen" definitivos, nunca errores transitorios. Tope `IMAGE_CACHE_MAX_MB` (200), borra lo más antiguo por mtime. En Render sin disco persistente se vacía en cada deploy (la semilla cubre la demo).
+- **Cortesía con Wikimedia:** `User-Agent` de la política (`WIKIMEDIA_USER_AGENT` para cambiarlo), máx. 2 llamadas simultáneas, `Retry-After` respetado (tope 5 s, un reintento) y pausa global de unos segundos tras un 429.
+
+Regenerar la semilla (lento a propósito: secuencial, 1,5 s entre consultas; reanudable, salta lo ya sembrado):
+
+```bash
+npx tsx apps/server/scripts/preload-images.ts          # desde la raíz del repo
+npx tsx apps/server/scripts/preload-images.ts --force  # vuelve a pedir todo
+```
+
+Si imprime "error transitorio" (429), espera unos minutos y vuelve a ejecutarlo. Tope de 8 MB en total y ~900 KB por imagen (las PNG grandes bajan a 500/330 px). Después: `git add apps/server/seed` y commit.

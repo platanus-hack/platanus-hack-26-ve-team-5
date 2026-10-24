@@ -18,6 +18,7 @@ export const LIMITS = {
   maxTitle: 80,
   maxText: 400,
   maxImages: 6,
+  maxQuote: 240,
 } as const;
 
 export const MuseumModeSchema = z.enum(["exploration", "quiz", "biography", "education"]);
@@ -68,6 +69,14 @@ export const ResolvedImageSchema = z.object({
   kind: z.enum(["painting", "diagram", "photo"]),
 });
 
+/** Dónde, en los apuntes del usuario, aparece la idea de una pieza. */
+export const PieceSourceSchema = z.object({
+  /** Fragmento copiado de los apuntes (≤ 240 caracteres). */
+  quote: z.string().min(1).max(LIMITS.maxQuote),
+  /** Línea 1-based donde empieza el fragmento. */
+  line: z.number().int().min(1).optional(),
+});
+
 export const PieceSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1).max(LIMITS.maxTitle),
@@ -82,6 +91,10 @@ export const PieceSchema = z.object({
   quiz: QuizSchema.optional(),
   /** Búsqueda de una imagen real para colgarla como cuadro. */
   imageSearch: ImageSearchSchema.optional(),
+  /** Trazabilidad: de qué parte de los apuntes sale esta pieza. */
+  source: PieceSourceSchema.optional(),
+  /** true si la IA agregó esta idea y no se encontró en los apuntes. */
+  unverified: z.boolean().optional(),
 });
 
 export const RoomSchema = z.object({
@@ -119,6 +132,8 @@ const MuseumObjectSchema = z.object({
   mode: MuseumModeSchema.optional(),
   /** Si falta, el frontend recorre las salas en el orden de `rooms`. */
   graph: MuseumGraphSchema.optional(),
+  /** SHA-256 (hex) de los apuntes contra los que se verificaron las fuentes. */
+  sourceTextHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
 });
 
 type MuseumShape = z.infer<typeof MuseumObjectSchema>;
@@ -324,6 +339,7 @@ export type Glyph = z.infer<typeof GlyphShape>;
 export type ImageSearch = z.infer<typeof ImageSearchSchema>;
 export type ResolvedImage = z.infer<typeof ResolvedImageSchema>;
 export type Quiz = z.infer<typeof QuizSchema>;
+export type PieceSource = z.infer<typeof PieceSourceSchema>;
 export type Piece = z.infer<typeof PieceSchema>;
 export type Room = z.infer<typeof RoomSchema>;
 export type GraphEdge = z.infer<typeof GraphEdgeSchema>;

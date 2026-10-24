@@ -101,6 +101,19 @@ export function locateFragment(text: string, fragment: string, from = 0): Fragme
 
 export type SourceStats = { total: number; verified: number; unverified: number };
 
+/** Cuenta las piezas con fuente verificada y las marcadas como no encontradas en los apuntes. */
+export function countSources(museum: Museum): SourceStats {
+  const stats: SourceStats = { total: 0, verified: 0, unverified: 0 };
+  for (const room of museum.rooms) {
+    for (const piece of room.pieces) {
+      stats.total++;
+      if (piece.unverified) stats.unverified++;
+      else if (piece.source) stats.verified++;
+    }
+  }
+  return stats;
+}
+
 /** Una sola línea, sin saltos, recortada al máximo permitido. */
 const tidy = (s: string) => s.replace(/\s+/g, " ").trim().slice(0, LIMITS.maxQuote);
 

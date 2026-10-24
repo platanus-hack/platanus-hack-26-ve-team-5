@@ -73,6 +73,13 @@ export function finishIntro() {
   useIntro.setState({ phase: 'done' })
 }
 
+/** Corta una intro en curso (al salir del palacio). No toca el registro de palacios ya vistos en la sesión. */
+export function abortIntro() {
+  if (!introState.active) return
+  introState.active = false
+  useIntro.setState({ phase: 'done' })
+}
+
 /** Solo pruebas. */
 export function resetIntroForTests() {
   played.clear()

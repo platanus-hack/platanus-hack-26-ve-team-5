@@ -8,6 +8,7 @@ import { LabelPlate } from '../scene/LabelPlate'
 import { DEFAULT_THEME } from '../theme'
 import { Builder, darken, lighten, mat } from './geo'
 import { makeDioramaMaterials, type TimeUniform } from './material'
+import { fireLights } from './fires'
 import { getDioramaModel, type DioramaModel, type PropGroup } from './model'
 import { buildGrassTuft } from './props/nature'
 import { ScienceAmbient, ScienceOverlay, useScienceMaterials } from './props/science/ScienceOverlay' // science-kit
@@ -336,7 +337,7 @@ export function DioramaScene({ diorama, unit = 1, shadowMapSize = 2048, labels =
     const v = new THREE.Vector3(...atmo.sunDir).normalize().multiplyScalar(70 * unit)
     return v.toArray() as [number, number, number]
   }, [atmo, unit])
-  const fires = model.groups.filter((g) => g.built.light)
+  const fires = useMemo(() => fireLights(model.groups), [model])
 
   return (
     <group>
@@ -347,7 +348,7 @@ export function DioramaScene({ diorama, unit = 1, shadowMapSize = 2048, labels =
         intensity={atmo.sunIntensity}
         position={sunPos}
         castShadow
-        shadow-mapSize={[shadowMapSize, shadowMapSize]}
+        shadow-mapSize={[Math.min(shadowMapSize, 2048), Math.min(shadowMapSize, 2048)]}
         shadow-bias={-0.0006}
         shadow-normalBias={0.05 * unit}
         shadow-camera-left={-half}
@@ -379,18 +380,16 @@ export function DioramaScene({ diorama, unit = 1, shadowMapSize = 2048, labels =
           </Fragment>
         ))}
         {labels && model.layout.linked.map((l) => <LinkedMark key={l.pieceId} link={l} focused={focusedPieceId === l.pieceId} />)}
-        {fires.map((g) =>
-          g.instances.map((i, k) => (
-            <pointLight
-              key={`${g.index}-${k}`}
-              position={[i.x + g.built.light!.offset[0], i.y + g.built.light!.offset[1], i.z + g.built.light!.offset[2]]}
-              color={g.built.light!.color}
-              intensity={g.built.light!.intensity * unit * unit * (atmo.stars ? 1.6 : 0.8)}
-              distance={g.built.light!.distance * unit}
-              decay={2}
-            />
-          )),
-        )}
+        {fires.map((f) => (
+          <pointLight
+            key={f.key}
+            position={f.position}
+            color={f.color}
+            intensity={f.intensity * unit * unit * (atmo.stars ? 1.6 : 0.8)}
+            distance={f.distance * unit}
+            decay={2}
+          />
+        ))}
       </group>
     </group>
   )

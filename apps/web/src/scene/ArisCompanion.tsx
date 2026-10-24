@@ -2,7 +2,9 @@ import { useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { Suspense, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { useDioramaStore } from '../diorama/dioramaStore'
 import { useStore } from '../store'
+import { ARIS_OFFSET, arisVisible } from './arisAnchor'
 
 const MODEL_PATH = '/models/aris-v2/model.glb'
 
@@ -39,6 +41,14 @@ function ArisModelInner() {
     const group = groupRef.current
     if (!group) return
 
+    // Dentro de un cuadro (y al entrar/salir) Aris se oculta; al volver reaparece junto al jugador.
+    const visible = arisVisible(useDioramaStore.getState().phase)
+    group.visible = visible
+    if (!visible) {
+      initialized.current = false
+      return
+    }
+
     const dt = Math.min(delta, 0.1)
     const t = state.clock.getElapsedTime()
     const camera = state.camera
@@ -53,9 +63,9 @@ function ArisModelInner() {
 
       currentPos.current
         .copy(camera.position)
-        .addScaledVector(_forward, 1.35)
-        .addScaledVector(_right, sideSign.current * 0.65)
-      currentPos.current.y = camera.position.y - 0.2
+        .addScaledVector(_forward, ARIS_OFFSET.forward)
+        .addScaledVector(_right, sideSign.current * ARIS_OFFSET.side)
+      currentPos.current.y = camera.position.y - ARIS_OFFSET.down
 
       lastPos.current.copy(currentPos.current)
       group.position.copy(currentPos.current)
@@ -84,9 +94,9 @@ function ArisModelInner() {
 
         currentPos.current
           .copy(camera.position)
-          .addScaledVector(_forward, 1.35)
-          .addScaledVector(_right, sideSign.current * 0.65)
-        currentPos.current.y = camera.position.y - 0.2
+          .addScaledVector(_forward, ARIS_OFFSET.forward)
+          .addScaledVector(_right, sideSign.current * ARIS_OFFSET.side)
+        currentPos.current.y = camera.position.y - ARIS_OFFSET.down
 
         lastPos.current.copy(currentPos.current)
         group.position.copy(currentPos.current)
@@ -112,9 +122,9 @@ function ArisModelInner() {
 
     _targetPos
       .copy(camera.position)
-      .addScaledVector(_forward, 1.35) // Adelante en el campo visual
-      .addScaledVector(_right, sideSign.current * 0.65) // Al lateral visible de la pantalla
-    _targetPos.y = camera.position.y - 0.2
+      .addScaledVector(_forward, ARIS_OFFSET.forward) // Adelante en el campo visual
+      .addScaledVector(_right, sideSign.current * ARIS_OFFSET.side) // Al lateral visible de la pantalla
+    _targetPos.y = camera.position.y - ARIS_OFFSET.down
 
     // 5. Seguimiento con Lerp elástico (framerate-independent exponential decay)
     const followFactor = 1 - Math.exp(-6.0 * dt)

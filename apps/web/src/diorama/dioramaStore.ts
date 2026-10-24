@@ -59,6 +59,14 @@ export const dioramaRequest: { enter: string | null; leave: boolean } = { enter:
 
 export const isDioramaActive = () => useDioramaStore.getState().phase !== 'room'
 
+/** Vuelve al palacio y olvida el cuadro activo, pistas y solicitudes pendientes (cambio de palacio, aunque el runtime no llegara a montarse). */
+export function resetDioramaState() {
+  useDioramaStore.setState({ phase: 'room', activeId: null, hintId: null, nearReturn: false })
+  dioramaRequest.enter = null
+  dioramaRequest.leave = false
+  dioramaFx.fade = 0
+}
+
 /**
  * Atajos del cuadro. Devuelve true si consume la tecla (Player no debe procesarla).
  * E: entrar al cuadro que se mira. Q: volver a la sala. Dentro del diorama, E sigue siendo

@@ -5,6 +5,8 @@ import { buildLayout, type PalaceLayout } from './palace/layout'
 import { evaluateArisQuery, speakAris } from './palace/arisBrain'
 import { MuseumSchema, type Museum } from '@mus3o/shared'
 import { attachLibraryDioramas } from './diorama/library'
+import { resetDioramaState } from './diorama/dioramaStore'
+import { abortIntro } from './intro/store'
 import { dueIds, palaceKey, strengthOf } from './memory/model'
 import { nowMs, useMemory } from './memory/store'
 
@@ -41,6 +43,7 @@ type State = {
   lastKeyRoomId: string | null
   arisMessage: string | null
   arisPromptOpen: boolean
+  arisMuted: boolean
 
   enterPalace: (palace: Museum, sourceText?: string | null) => void
   resume: () => void
@@ -56,6 +59,7 @@ type State = {
   askAris: (query: string) => void
   setArisPromptOpen: (open: boolean) => void
   closeArisDialog: () => void
+  toggleArisMute: () => void
   set: (patch: Partial<Pick<State, 'currentRoomId' | 'focusedId' | 'focusedDoorId' | 'openId' | 'locked' | 'lastKeyRoomId' | 'arisMessage' | 'arisPromptOpen'>>) => void
 }
 
@@ -107,6 +111,7 @@ export const useStore = create<State>()(
       lastKeyRoomId: null,
       arisMessage: null,
       arisPromptOpen: false,
+      arisMuted: false,
 
       enterPalace: (rawPalace, sourceText) => {
         // Los museos generados por IA no traen dioramas: se recuperan de la biblioteca si encajan.
@@ -123,15 +128,36 @@ export const useStore = create<State>()(
           openId: null,
           focusedId: null,
           focusedDoorId: null,
+          currentRoomId: null,
+          locked: false,
+          arisMessage: null,
+          arisPromptOpen: false,
           hasKey: false,
           unlockedDoors: {},
           // Las salas sin nada que memorizar ya tienen su llave.
           roomKeys: earnedRoomKeys(palace, {}, {}),
           lastKeyRoomId: null,
         })
+        // El cuadro activo del palacio anterior no puede sobrevivir al cambio.
+        resetDioramaState()
       },
       resume: () => set((s) => (s.palace ? { screen: 'palace', layout: s.layout ?? buildLayout(s.palace) } : {})),
-      exitToLanding: () => set({ screen: 'landing', openId: null, focusedId: null, focusedDoorId: null }),
+      exitToLanding: () => {
+        set({
+          screen: 'landing',
+          mode: 'explore',
+          reviewIds: null,
+          exam: {},
+          openId: null,
+          focusedId: null,
+          focusedDoorId: null,
+          arisMessage: null,
+          arisPromptOpen: false,
+          locked: false,
+        })
+        abortIntro()
+        resetDioramaState()
+      },
       setMode: (mode) => set({ mode, openId: null, exam: {}, reviewIds: null }),
       startReview: () => {
         const { palace } = get()
@@ -179,11 +205,12 @@ export const useStore = create<State>()(
             roomKeys: s.roomKeys,
             mode: s.mode,
           })
-          speakAris(res.text)
+          speakAris(res.text, s.arisMuted)
           return { arisMessage: res.text, arisPromptOpen: false }
         }),
       setArisPromptOpen: (open) => set({ arisPromptOpen: open }),
       closeArisDialog: () => set({ arisMessage: null }),
+      toggleArisMute: () => set((s) => ({ arisMuted: !s.arisMuted })),
       set: (patch) => set(patch),
     }),
     {
@@ -197,21 +224,23 @@ export const useStore = create<State>()(
         unlockedDoors: s.unlockedDoors,
         freeExplore: s.freeExplore,
         sourceText: s.sourceText,
+        arisMuted: s.arisMuted,
       }),
       // Lo guardado puede estar corrupto o venir de otra versión: se valida antes de usarlo.
       merge: (persisted, current) => {
         const p = persisted as
-          | { palace?: unknown; memorized?: unknown; roomKeys?: unknown; unlockedDoors?: unknown; freeExplore?: unknown; sourceText?: unknown }
+          | { palace?: unknown; memorized?: unknown; roomKeys?: unknown; unlockedDoors?: unknown; freeExplore?: unknown; sourceText?: unknown; arisMuted?: unknown }
           | undefined
         const freeExplore = typeof p?.freeExplore === 'boolean' ? p.freeExplore : current.freeExplore
+        const arisMuted = typeof p?.arisMuted === 'boolean' ? p.arisMuted : current.arisMuted
         const palace = MuseumSchema.safeParse(p?.palace)
-        if (!palace.success) return { ...current, freeExplore }
+        if (!palace.success) return { ...current, freeExplore, arisMuted }
         const record = (value: unknown) =>
           value && typeof value === 'object' ? (value as Record<string, true>) : {}
         const memorized = record(p?.memorized)
         // Las llaves guardadas se completan con las que corresponden al progreso guardado.
         const roomKeys = { ...record(p?.roomKeys), ...earnedRoomKeys(palace.data, memorized, {}) }
-        return { ...current, palace: palace.data, memorized, roomKeys, unlockedDoors: record(p?.unlockedDoors), freeExplore, sourceText: capSourceText(p?.sourceText) }
+        return { ...current, palace: palace.data, memorized, roomKeys, unlockedDoors: record(p?.unlockedDoors), freeExplore, arisMuted, sourceText: capSourceText(p?.sourceText) }
       },
     },
   ),

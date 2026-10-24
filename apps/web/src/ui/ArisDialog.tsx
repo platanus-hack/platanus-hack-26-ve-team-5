@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { pointerLock } from '../scene/pointerLock'
 import { useStore } from '../store'
+import { useSpeechRecognition } from '../palace/useSpeechRecognition'
 
 export function ArisDialog() {
   const message = useStore((s) => s.arisMessage)
   const close = useStore((s) => s.closeArisDialog)
+  const isMuted = useStore((s) => s.arisMuted)
+  const toggleMute = useStore((s) => s.toggleArisMute)
 
   useEffect(() => {
     if (!message) return
@@ -24,6 +27,15 @@ export function ArisDialog() {
         <span className="aris-name">Aris</span>
         <button
           type="button"
+          className="aris-mute-btn"
+          onClick={toggleMute}
+          aria-label={isMuted ? 'Activar voz' : 'Silenciar voz'}
+          title={isMuted ? 'Activar voz' : 'Silenciar voz'}
+        >
+          {isMuted ? '🔇' : '🔊'}
+        </button>
+        <button
+          type="button"
           className="aris-close-btn"
           onClick={close}
           aria-label="Cerrar mensaje"
@@ -40,74 +52,57 @@ export function ArisPrompt() {
   const isOpen = useStore((s) => s.arisPromptOpen)
   const setOpen = useStore((s) => s.setArisPromptOpen)
   const askAris = useStore((s) => s.askAris)
+  const isMuted = useStore((s) => s.arisMuted)
+  const toggleMute = useStore((s) => s.toggleArisMute)
   const [query, setQuery] = useState('')
-  const [isListening, setIsListening] = useState(false)
-  const recognitionRef = useRef<any>(null)
 
-  // Detección de soporte nativo para Web Speech API
-  const hasSpeech =
-    typeof window !== 'undefined' &&
-    ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
-
-  useEffect(() => {
-    if (!hasSpeech) return
-
-    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRec()
-    recognition.lang = 'es-ES'
-    recognition.continuous = false
-    recognition.interimResults = false
-
-    recognition.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript
-      if (transcript) {
-        askAris(transcript)
-        setQuery('')
-        pointerLock.lock()
-      }
-      setIsListening(false)
-    }
-
-    recognition.onerror = () => {
-      setIsListening(false)
-    }
-
-    recognition.onend = () => {
-      setIsListening(false)
-    }
-
-    recognitionRef.current = recognition
-  }, [hasSpeech, askAris])
-
-  const toggleMic = () => {
-    if (!recognitionRef.current) return
-    if (isListening) {
-      recognitionRef.current.stop()
-      setIsListening(false)
-    } else {
-      try {
-        setIsListening(true)
-        recognitionRef.current.start()
-      } catch {
-        setIsListening(false)
-      }
-    }
+  const handleFinalResult = (transcript: string) => {
+    if (!transcript) return
+    askAris(transcript)
+    setQuery('')
+    pointerLock.lock()
   }
+
+  const {
+    isSupported,
+    isListening,
+    interimText,
+    errorStatus,
+    toggleListening,
+    stopListening,
+  } = useSpeechRecognition({
+    onFinalResult: handleFinalResult,
+    autoSendDelayMs: 400,
+  })
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!query.trim()) return
-    askAris(query)
+    stopListening()
+    const text = (isListening && interimText ? interimText : query).trim()
+    if (!text) return
+    askAris(text)
     setQuery('')
     pointerLock.lock()
   }
 
   const cancel = () => {
+    stopListening()
     setOpen(false)
     pointerLock.lock()
   }
 
   if (!isOpen) return null
+
+  const displayValue = isListening && interimText ? interimText : query
+
+  let placeholder = 'Escribe tu pregunta a Aris...'
+  if (isListening) {
+    placeholder = interimText || 'Escuchando tu voz...'
+  } else if (errorStatus === 'not-allowed') {
+    placeholder = 'Micrófono bloqueado (permite acceso)'
+  } else if (errorStatus === 'no-speech') {
+    placeholder = 'No se detectó audio, intenta de nuevo'
+  }
 
   return (
     <div className="aris-modal-overlay">
@@ -120,6 +115,15 @@ export function ArisPrompt() {
               Pregúntale qué falta memorizar, adónde ir o pistas sobre la sala.
             </p>
           </div>
+          <button
+            type="button"
+            className="aris-mute-btn"
+            onClick={toggleMute}
+            aria-label={isMuted ? 'Activar voz' : 'Silenciar voz'}
+            title={isMuted ? 'Activar voz' : 'Silenciar voz'}
+          >
+            {isMuted ? '🔇' : '🔊'}
+          </button>
           <button type="button" className="aris-close-btn" onClick={cancel}>
             ✕
           </button>
@@ -130,22 +134,22 @@ export function ArisPrompt() {
             autoFocus
             type="text"
             className="aris-input"
-            value={query}
+            value={displayValue}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={isListening ? 'Escuchando tu voz...' : 'Escribe tu pregunta a Aris...'}
+            placeholder={placeholder}
             disabled={isListening}
           />
-          {hasSpeech && (
+          {isSupported && (
             <button
               type="button"
               className={`aris-mic-btn ${isListening ? 'listening' : ''}`}
-              onClick={toggleMic}
-              title="Dictar por voz"
+              onClick={toggleListening}
+              title={isListening ? 'Detener dictado' : 'Dictar por voz'}
             >
               🎤
             </button>
           )}
-          <button type="submit" className="btn btn-primary">
+          <button type="submit" className="btn btn-primary" disabled={isListening && !interimText}>
             Preguntar
           </button>
         </div>
@@ -155,6 +159,7 @@ export function ArisPrompt() {
             type="button"
             className="pill"
             onClick={() => {
+              stopListening()
               askAris('¿Qué falta memorizar?')
               pointerLock.lock()
             }}
@@ -165,6 +170,7 @@ export function ArisPrompt() {
             type="button"
             className="pill"
             onClick={() => {
+              stopListening()
               askAris('¿Adónde voy ahora?')
               pointerLock.lock()
             }}
@@ -175,6 +181,7 @@ export function ArisPrompt() {
             type="button"
             className="pill"
             onClick={() => {
+              stopListening()
               askAris('¿De qué trata esta sala?')
               pointerLock.lock()
             }}
@@ -185,6 +192,7 @@ export function ArisPrompt() {
             type="button"
             className="pill"
             onClick={() => {
+              stopListening()
               askAris('¿Dónde está la llave?')
               pointerLock.lock()
             }}

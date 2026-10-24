@@ -81,6 +81,7 @@ export function Hud({ layout }: { layout: PalaceLayout }) {
   const exam = useStore((s) => s.exam)
   const currentRoomId = useStore((s) => s.currentRoomId)
   const inDiorama = useDioramaStore((s) => s.phase === 'inside' || s.phase === 'leaving')
+  const arisAvailable = useDioramaStore((s) => s.phase === 'room')
   const focusedId = useStore((s) => s.focusedId)
   const focusedDoorId = useStore((s) => s.focusedDoorId)
   const hasKey = useStore((s) => s.hasKey)
@@ -200,10 +201,10 @@ export function Hud({ layout }: { layout: PalaceLayout }) {
       <Narrator layout={layout} />
 
       <p className="hud-legend">
-        <kbd>W A S D</kbd> moverse · <kbd>Shift</kbd> correr · <kbd>T</kbd> hablar con Aris · <kbd>Mouse</kbd> mirar · <kbd>Esc</kbd> pausa
+        <kbd>W A S D</kbd> moverse · <kbd>Shift</kbd> correr · {arisAvailable && <><kbd>T</kbd> hablar con Aris · </>}<kbd>Mouse</kbd> mirar · <kbd>Esc</kbd> pausa
       </p>
 
-      {locked && (
+      {locked && arisAvailable && (
         <button
           type="button"
           className="aris-trigger-btn"

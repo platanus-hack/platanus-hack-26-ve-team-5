@@ -1,4 +1,5 @@
 import type { Museum } from '@mus3o/shared'
+import { playArisVoice } from './arisAudio'
 
 export type ArisResponse = {
   text: string
@@ -166,20 +167,7 @@ export function evaluateArisQuery(query: string, ctx: BrainContext): ArisRespons
   }
 }
 
-// Síntesis de voz robótica nativa (0 KB de librerías)
-export function speakAris(text: string) {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
-
-  try {
-    window.speechSynthesis.cancel() // Cancela cualquier locución previa
-    // Limpiar el prefijo "Aris:" para la voz
-    const cleanText = text.replace(/^Aris:\s*/i, '')
-    const utterance = new SpeechSynthesisUtterance(cleanText)
-    utterance.lang = 'es-ES'
-    utterance.pitch = 1.35 // Tono ligeramente agudo para carácter de robot/mascota
-    utterance.rate = 1.05
-    window.speechSynthesis.speak(utterance)
-  } catch {
-    // Si el navegador bloquea el audio autoplay o falla TTS, no interrumpe el juego
-  }
+// Síntesis de voz robótica nativa con feedback procedural (0 KB de librerías)
+export function speakAris(text: string, muted?: boolean) {
+  playArisVoice(text, { muted })
 }

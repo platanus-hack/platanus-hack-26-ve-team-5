@@ -5,7 +5,8 @@ import { Vector3 } from 'three'
 
 import type { Piece } from '@mus3o/shared'
 import { canOpenDoor } from '../palace/keys'
-import { handleDioramaKey, isDioramaActive } from '../diorama/dioramaStore'
+import { handleDioramaKey, isDioramaActive, useDioramaStore } from '../diorama/dioramaStore'
+import { allowedKeys, findDoor } from '../palace/inputKeys'
 import { canListen } from '../lib/voice'
 import { moveWithCollisions, roomAt, type PalaceLayout } from '../palace/layout'
 import { pieceKind } from '../palace/pieceKind'
@@ -30,6 +31,9 @@ export function Player({ layout }: { layout: PalaceLayout }) {
   const forward = useRef(new Vector3())
   // Concepto enfocado, para que el handler de teclas conozca su tipo sin depender de su texto.
   const focusedConcept = useRef<Piece | null>(null)
+  // El handler de teclas se registra una vez: lee el layout vigente desde esta ref, no el del primer render.
+  const layoutRef = useRef(layout)
+  layoutRef.current = layout
 
   useEffect(() => {
     camera.rotation.order = 'YXZ'
@@ -44,11 +48,17 @@ export function Player({ layout }: { layout: PalaceLayout }) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       keys.current[e.code] = true
       // Cuadro-portal: E entra al diorama, Q vuelve (ver diorama/dioramaStore.ts)
-      if (handleDioramaKey(e.code)) return
+      if (!introState.active && handleDioramaKey(e.code)) return
       const s = useStore.getState()
+      const allowed = allowedKeys({
+        introActive: introState.active,
+        dioramaPhase: useDioramaStore.getState().phase,
+        hasConcept: !!(s.openId ?? s.focusedId),
+      })
+      if (!allowed.has(e.code)) return
       if (e.code === 'KeyE') {
         if (s.focusedDoorId && !isDoorOpen(s, s.focusedDoorId)) {
-          const door = layout.doors.find((d) => d.id === s.focusedDoorId)
+          const door = findDoor(layoutRef.current, s.focusedDoorId)
           if (door && canOpenDoor(door, s.hasKey, s.roomKeys)) s.unlockDoor(door.id)
           return
         }

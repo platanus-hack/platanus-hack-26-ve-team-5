@@ -353,6 +353,23 @@ kbd {
 .card h2.fail { color: var(--danger); }
 .card-body { margin: 0 0 10px; color: var(--ink); line-height: 1.55; }
 .card-meta { margin: 0 0 10px; color: var(--ink-muted); font-size: 0.95rem; }
+.card-source {
+  margin: 12px 0 0;
+  padding: 8px 10px 9px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 2px solid var(--line);
+  border-left: 6px solid var(--wall);
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-style: normal;
+}
+.card-source p { margin: 0; }
+.card-source-head { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-muted); }
+.card-source-context { margin-top: 4px !important; font-size: 0.8rem; line-height: 1.35; color: var(--ink-muted); }
+.card-source-quote { margin-top: 3px !important; font-size: 0.92rem; line-height: 1.45; color: var(--ink); overflow-wrap: anywhere; }
+.card-source mark { background: var(--wall); color: var(--wall-ink); padding: 0 3px; border-radius: 1px; box-shadow: none; text-shadow: none; }
+.card-source-warn { border-left-color: var(--danger); }
+.card-source-warn .card-source-quote { color: var(--danger); font-weight: 600; }
 .card-figure { margin: 0 0 10px; }
 .card-figure img { display: block; width: 100%; max-height: 150px; object-fit: contain; background: rgba(255, 255, 255, 0.4); border-radius: var(--radius); }
 .card-figure figcaption { margin-top: 4px; font-size: 0.75rem; color: var(--ink-muted); line-height: 1.35; }

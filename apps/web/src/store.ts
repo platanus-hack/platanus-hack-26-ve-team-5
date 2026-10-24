@@ -14,6 +14,8 @@ type State = {
   screen: Screen
   mode: Mode
   palace: Museum | null
+  /** Apuntes del usuario (≤ 50 KB) para mostrar el contexto de cada fuente; se quedan en su dispositivo. */
+  sourceText: string | null
   layout: PalaceLayout | null
   memorized: Record<string, true>
   exam: Record<string, ExamResult>
@@ -25,7 +27,7 @@ type State = {
   hasKey: boolean
   unlockedDoors: Record<string, true>
 
-  enterPalace: (palace: Museum) => void
+  enterPalace: (palace: Museum, sourceText?: string | null) => void
   resume: () => void
   exitToLanding: () => void
   setMode: (mode: Mode) => void
@@ -35,6 +37,12 @@ type State = {
   recordExam: (id: string, result: ExamResult) => void
   set: (patch: Partial<Pick<State, 'currentRoomId' | 'focusedId' | 'focusedDoorId' | 'openId' | 'locked'>>) => void
 }
+
+export const MAX_SOURCE_TEXT = 50_000
+
+/** Lo guardado puede estar manipulado: solo se acepta texto y dentro del tope. */
+export const capSourceText = (v: unknown): string | null =>
+  typeof v === 'string' && v.length > 0 ? v.slice(0, MAX_SOURCE_TEXT) : null
 
 const safeStorage = createJSONStorage(() => {
   try {
@@ -50,6 +58,7 @@ export const useStore = create<State>()(
       screen: 'landing',
       mode: 'explore',
       palace: null,
+      sourceText: null,
       layout: null,
       memorized: {},
       exam: {},
@@ -61,9 +70,10 @@ export const useStore = create<State>()(
       hasKey: false,
       unlockedDoors: {},
 
-      enterPalace: (palace) =>
+      enterPalace: (palace, sourceText) =>
         set({
           palace,
+          sourceText: capSourceText(sourceText),
           layout: buildLayout(palace),
           screen: 'palace',
           mode: 'explore',
@@ -94,15 +104,15 @@ export const useStore = create<State>()(
       name: 'mus3o-v1',
       storage: safeStorage,
       // Solo el contenido y el progreso; el layout se recalcula.
-      partialize: (s) => ({ palace: s.palace, memorized: s.memorized }),
+      partialize: (s) => ({ palace: s.palace, sourceText: s.sourceText, memorized: s.memorized }),
       // Lo guardado puede estar corrupto o venir de otra versión: se valida antes de usarlo.
       merge: (persisted, current) => {
-        const p = persisted as { palace?: unknown; memorized?: unknown } | undefined
+        const p = persisted as { palace?: unknown; sourceText?: unknown; memorized?: unknown } | undefined
         const palace = MuseumSchema.safeParse(p?.palace)
         if (!palace.success) return current
         const memorized =
           p?.memorized && typeof p.memorized === 'object' ? (p.memorized as Record<string, true>) : {}
-        return { ...current, palace: palace.data, memorized }
+        return { ...current, palace: palace.data, sourceText: capSourceText(p?.sourceText), memorized }
       },
     },
   ),

@@ -377,9 +377,9 @@ kbd {
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
-  background: rgb(31 20 17 / 0.72);
-  padding: 16px;
+  place-items: center start;
+  background: rgb(31 20 17 / 0.42);
+  padding: 16px clamp(16px, 5vw, 64px);
 }
 .pause-panel {
   width: min(520px, 100%);
@@ -432,3 +432,27 @@ kbd {
 .toggle span { display: grid; gap: 2px; }
 .toggle small { font-size: 0.85rem; opacity: 0.85; }
 .landing .toggle { color: var(--bg-ink); }
+
+/* ---------- Memoria ---------- */
+.plaque-memory { margin: 4px 0 0; font-size: 0.85rem; font-weight: 600; }
+.hud-due {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  background: var(--surface);
+  color: var(--ink-muted);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+.hud-due-on { background: var(--accent); color: var(--ink); }
+.due-chip { font-weight: 600; }
+.memory-panel { margin-top: 22px; padding-top: 18px; border-top: 2px solid var(--line); display: grid; gap: 12px; }
+.memory-note { font-size: 0.85rem; }
+.time-machine { margin: 0; padding: 12px; border: 2px solid var(--line); border-radius: var(--radius); display: grid; gap: 10px; }
+.time-machine legend { padding: 0 6px; font-weight: 700; }
+.time-steps { display: flex; flex-wrap: wrap; gap: 6px; }
+.btn-step { padding: 4px 10px; font-size: 0.85rem; background: var(--surface); color: var(--ink); }
+.btn-step.is-on { background: var(--ink); color: var(--surface); }
+.time-machine input[type='range'] { width: 100%; accent-color: var(--ink); }

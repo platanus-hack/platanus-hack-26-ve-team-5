@@ -4,6 +4,7 @@ import { dungeonDemoMuseum } from '../mocks/dungeon'
 import { EXAMPLE_TEXT } from '../palace/example'
 import { buildLayout } from '../palace/layout'
 import { detectFormat, MAX_INPUT_CHARS, parsePalace } from '../palace/parse'
+import { dueCountFor } from '../memory/hooks'
 import { useStore } from '../store'
 import { FreeExploreToggle } from './FreeExploreToggle'
 
@@ -130,6 +131,9 @@ export function Landing() {
           {saved && (
             <button className="btn btn-ghost" onClick={resume}>
               Continuar “{saved.title}”
+              {dueCountFor(saved) > 0 && (
+                <span className="due-chip"> · {dueCountFor(saved)} {dueCountFor(saved) === 1 ? 'repaso pendiente' : 'repasos pendientes'}</span>
+              )}
             </button>
           )}
         </div>

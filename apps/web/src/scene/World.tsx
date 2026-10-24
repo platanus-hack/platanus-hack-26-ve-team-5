@@ -4,6 +4,7 @@ import type { PalaceLayout } from '../palace/layout'
 import { useStore } from '../store'
 import { DEFAULT_THEME, roomPalettes, type Theme } from '../theme'
 import { AssetDoorway, AssetFloor, AssetWall } from './DungeonAssets'
+import { DecayField } from './Decay'
 import { Player } from './Player'
 import { Room } from './Room'
 
@@ -54,6 +55,7 @@ export function World({ layout, theme = DEFAULT_THEME }: { layout: PalaceLayout;
       <fog attach="fog" args={[scene.fog.color, scene.fog.near, scene.fog.far]} />
       <hemisphereLight args={[scene.ambient.sky, scene.ambient.ground, scene.ambient.intensity]} />
       <Sun layout={layout} theme={theme} />
+      <DecayField layout={layout} theme={theme} />
       {layout.rooms.map((r, i) => (
         <Room key={r.id} room={r} palette={palettes[i]} theme={theme} />
       ))}

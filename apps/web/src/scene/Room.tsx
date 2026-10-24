@@ -3,7 +3,10 @@ import { useFrame } from '@react-three/fiber'
 import { Suspense, useMemo, useRef } from 'react'
 import type { Mesh, Object3D } from 'three'
 import { assignPaintings, type Box, type PedestalLayout, RoomLayout, Side } from '../palace/layout'
-import { useStore } from '../store'
+import { useConceptLevel } from '../memory/hooks'
+import { spinOf } from '../memory/shown'
+import { inExamScope, useStore } from '../store'
+import { DecayWrap, FadingFloor, WallFlakes } from './Decay'
 import { Painting } from './Painting'
 import type { RoomPalette, Theme } from '../theme'
 import { AssetWall } from './DungeonAssets'
@@ -103,24 +106,28 @@ function Inscription({ room, palette }: { room: RoomLayout; palette: RoomPalette
 // Modelos de la IA miden ~2 m; sobre el pedestal se escalan a ~0.9 m.
 const MODEL_SCALE = 0.45
 const PEDESTAL_TOP = 1.05
+// La etiqueta se apaga a medida que el recuerdo se debilita.
+const LABEL_OPACITY = { new: 0.85, intact: 0.85, cracked: 0.65, broken: 0.5, forgotten: 0.4 } as const
 
 function Pedestal({ p, palette, theme }: { p: PedestalLayout; palette: RoomPalette; theme: Theme }) {
   const ref = useRef<Object3D>(null)
   const model = p.concept.model?.type === 'procedural' ? p.concept.model : null
   const memorized = useStore((s) => !!s.memorized[p.concept.id])
   const focused = useStore((s) => s.focusedId === p.concept.id)
-  const mode = useStore((s) => s.mode)
+  const asked = useStore((s) => inExamScope(s, p.concept.id))
   const result = useStore((s) => s.exam[p.concept.id])
+  const level = useConceptLevel(p.concept.id)
   useFrame((_, dt) => {
     if (!ref.current) return
     // Gira lento; sin flotación para que la sombra quede firme sobre el pedestal.
     ref.current.rotation.y += dt * (focused ? 0.9 : 0.35)
+    spinOf.set(p.concept.id, ref.current.rotation.y)
   })
 
-  const hidden = mode === 'exam' && !result
+  const hidden = asked && !result
   const label = hidden ? '???' : p.concept.title
   const tokens = theme.ui.tokens
-  const band = mode === 'exam' && result ? (result === 'ok' ? tokens.ok : tokens.danger) : memorized ? palette.trim : null
+  const band = asked && result ? (result === 'ok' ? tokens.ok : tokens.danger) : memorized ? palette.trim : null
   const k = focused ? 1.1 : 1
 
   return (
@@ -139,6 +146,7 @@ function Pedestal({ p, palette, theme }: { p: PedestalLayout; palette: RoomPalet
           <meshStandardMaterial color={band} roughness={0.5} metalness={0.35} flatShading />
         </mesh>
       )}
+      <DecayWrap id={p.concept.id}>
       {model ? (
         <group position={[0, PEDESTAL_TOP + 0.05, 0]} scale={k}>
           <group ref={ref} scale={MODEL_SCALE}>
@@ -151,6 +159,7 @@ function Pedestal({ p, palette, theme }: { p: PedestalLayout; palette: RoomPalet
           <Plaster theme={theme} color={focused ? '#FFFFFF' : undefined} />
         </mesh>
       )}
+      </DecayWrap>
       <Suspense fallback={null}>
         <Billboard position={[0, model ? 2.25 : 2.1, 0]}>
           <Text
@@ -160,10 +169,15 @@ function Pedestal({ p, palette, theme }: { p: PedestalLayout; palette: RoomPalet
             textAlign="center"
             anchorY="bottom"
             color={palette.ink}
-            fillOpacity={focused ? 1 : 0.85}
+            fillOpacity={focused ? 1 : LABEL_OPACITY[level]}
           >
             {label}
           </Text>
+          {!hidden && (level === 'new' || level === 'forgotten') && (
+            <Text font={FONT_BODY} fontSize={0.12} anchorY="top" position={[0, -0.03, 0]} color={palette.ink} fillOpacity={0.7}>
+              {level === 'new' ? 'nuevo' : 'olvidado'}
+            </Text>
+          )}
         </Billboard>
       </Suspense>
     </group>
@@ -175,10 +189,8 @@ export function Room({ room, palette, theme }: { room: RoomLayout; palette: Room
   const paintings = useMemo(() => assignPaintings(room), [room])
   return (
     <group>
-      <mesh position={[room.x, -0.05, room.z]} receiveShadow>
-        <boxGeometry args={[room.w, 0.1, room.d]} />
-        <meshStandardMaterial color={palette.floor} flatShading roughness={1} />
-      </mesh>
+      <FadingFloor room={room} palette={palette} />
+      <WallFlakes room={room} />
       {room.walls.map((w, i) => (
         <group key={i}>
           <Wall box={w} color={palette.wall} />

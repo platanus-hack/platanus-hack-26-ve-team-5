@@ -7,7 +7,7 @@ import type { Piece } from '@mus3o/shared'
 import { canOpenDoor } from '../palace/keys'
 import { moveWithCollisions, roomAt, type PalaceLayout } from '../palace/layout'
 import { pieceKind } from '../palace/pieceKind'
-import { playerPose, useStore, isDoorOpen } from '../store'
+import { inExamScope, isDoorOpen, playerPose, useStore } from '../store'
 import { pointerLock } from './pointerLock'
 
 const EYE = 1.7
@@ -54,7 +54,7 @@ export function Player({ layout }: { layout: PalaceLayout }) {
           }
           s.set({ openId: s.focusedId })
           // En el examen hay que escribir, así que se libera el puntero.
-          if (s.mode === 'exam' && !s.exam[s.focusedId]) controls.current?.unlock()
+          if (inExamScope(s, s.focusedId) && !s.exam[s.focusedId]) controls.current?.unlock()
         }
       }
       if (e.code === 'KeyM' && s.mode === 'explore') {

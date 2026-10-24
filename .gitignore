@@ -15,3 +15,6 @@ dist
 !.claude/skills/architecture/
 !.claude/skills/3d-validation/
 CLAUDE.local.md
+
+# Caché de dependencias de Vite
+.vite
